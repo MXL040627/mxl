@@ -1,0 +1,880 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SpeedTest 网速测试</title>
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+        --bg: #0a0e1a;
+        --card: rgba(255,255,255,0.04);
+        --card-border: rgba(255,255,255,0.06);
+        --text: #e8edf5;
+        --text-dim: #7a8299;
+        --accent: #6366f1;
+        --accent-glow: rgba(99,102,241,0.3);
+        --success: #22c55e;
+        --warning: #f59e0b;
+        --danger: #ef4444;
+        --radius: 16px;
+    }
+
+    body {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 40px 20px;
+        background-image:
+            radial-gradient(ellipse at 20% 50%, rgba(99,102,241,0.08) 0%, transparent 50%),
+            radial-gradient(ellipse at 80% 20%, rgba(34,197,94,0.05) 0%, transparent 50%),
+            radial-gradient(ellipse at 50% 80%, rgba(245,158,11,0.04) 0%, transparent 50%);
+    }
+
+    /* ─── 粒子背景 ─── */
+    .particles {
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        pointer-events: none; overflow: hidden;
+        z-index: 0;
+    }
+    .particle {
+        position: absolute;
+        width: 2px; height: 2px;
+        background: rgba(255,255,255,0.15);
+        border-radius: 50%;
+        animation: float linear infinite;
+    }
+    @keyframes float {
+        0% { transform: translateY(100vh) rotate(0deg); opacity: 0; }
+        10% { opacity: 1; }
+        90% { opacity: 1; }
+        100% { transform: translateY(-10vh) rotate(720deg); opacity: 0; }
+    }
+
+    .container {
+        position: relative; z-index: 1;
+        width: 100%; max-width: 780px;
+    }
+
+    /* ─── Header ──�� */
+    .header {
+        text-align: center; margin-bottom: 36px;
+    }
+    .header .logo {
+        font-size: 32px; font-weight: 800;
+        background: linear-gradient(135deg, #6366f1, #22c55e);
+        -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+        background-clip: text;
+        letter-spacing: -1px;
+    }
+    .header .logo span { color: var(--text); -webkit-text-fill-color: var(--text); }
+    .header .sub {
+        font-size: 14px; color: var(--text-dim); margin-top: 6px;
+        font-weight: 400;
+    }
+
+    /* ─── Gauge ─── */
+    .gauge-card {
+        background: var(--card); backdrop-filter: blur(20px);
+        border: 1px solid var(--card-border);
+        border-radius: 24px; padding: 40px 30px 30px;
+        text-align: center; margin-bottom: 20px;
+        position: relative; overflow: hidden;
+    }
+    .gauge-card::before {
+        content: ''; position: absolute;
+        top: -50%; left: -50%; width: 200%; height: 200%;
+        background: conic-gradient(from 0deg, transparent, var(--accent-glow), transparent 60%);
+        animation: spin 6s linear infinite; opacity: 0.3;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .gauge-card > * { position: relative; z-index: 1; }
+
+    .gauge-ring {
+        width: 180px; height: 180px; margin: 0 auto 16px;
+        position: relative;
+    }
+    .gauge-ring svg { transform: rotate(-90deg); }
+    .gauge-ring .bg-circle { fill: none; stroke: rgba(255,255,255,0.06); stroke-width: 8; }
+    .gauge-ring .fg-circle {
+        fill: none; stroke: url(#gaugeGrad); stroke-width: 8;
+        stroke-linecap: round;
+        stroke-dasharray: 502; stroke-dashoffset: 502;
+        transition: stroke-dashoffset 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    .gauge-value {
+        position: absolute; top: 50%; left: 50%;
+        transform: translate(-50%, -50%);
+        text-align: center;
+    }
+    .gauge-value .num {
+        font-size: 44px; font-weight: 800;
+        background: linear-gradient(135deg, #e8edf5, #a5b4d0);
+        -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+        background-clip: text;
+        line-height: 1;
+    }
+    .gauge-value .unit {
+        font-size: 16px; color: var(--text-dim); margin-top: 4px;
+        font-weight: 500;
+    }
+    .gauge-status {
+        font-size: 15px; color: var(--text-dim); margin-top: 4px;
+    }
+    .gauge-status .label {
+        display: inline-block; padding: 4px 14px;
+        border-radius: 20px; font-size: 13px; font-weight: 600;
+        background: rgba(99,102,241,0.15); color: #818cf8;
+    }
+    .gauge-status .label.ready { background: rgba(34,197,94,0.15); color: #4ade80; }
+    .gauge-status .label.testing { background: rgba(245,158,11,0.15); color: #fbbf24; animation: pulse 0.8s infinite; }
+    .gauge-status .label.done { background: rgba(99,102,241,0.15); color: #818cf8; }
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+    /* ─── Speed rows ─── */
+    .speed-rows {
+        display: grid; gap: 12px; margin-bottom: 20px;
+    }
+    .speed-row {
+        background: var(--card); backdrop-filter: blur(20px);
+        border: 1px solid var(--card-border);
+        border-radius: var(--radius); padding: 18px 22px;
+        display: flex; align-items: center; gap: 16px;
+        transition: border-color 0.3s;
+    }
+    .speed-row.active { border-color: var(--accent); box-shadow: 0 0 20px var(--accent-glow); }
+    .speed-row .icon {
+        width: 42px; height: 42px; border-radius: 12px;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 20px; flex-shrink: 0;
+    }
+    .speed-row .icon.download { background: rgba(99,102,241,0.15); }
+    .speed-row .icon.upload { background: rgba(34,197,94,0.15); }
+    .speed-row .icon.ping-icon { background: rgba(245,158,11,0.15); }
+    .speed-row .icon.info-icon { background: rgba(236,72,153,0.15); }
+    .speed-row .info { flex: 1; min-width: 0; }
+    .speed-row .info .title { font-size: 13px; color: var(--text-dim); font-weight: 500; }
+    .speed-row .info .value { font-size: 18px; font-weight: 700; margin-top: 2px; }
+    .speed-row .info .value .dim { font-size: 14px; font-weight: 400; color: var(--text-dim); }
+
+    /* ─── Progress bar ─── */
+    .progress-wrap {
+        width: 100%; margin-top: 8px;
+    }
+    .progress-bar {
+        height: 4px; background: rgba(255,255,255,0.06); border-radius: 4px;
+        overflow: hidden; position: relative;
+    }
+    .progress-bar .fill {
+        height: 100%; border-radius: 4px;
+        background: linear-gradient(90deg, #6366f1, #22c55e);
+        width: 0%; transition: width 0.3s;
+    }
+    .progress-text {
+        font-size: 11px; color: var(--text-dim); margin-top: 4px;
+        text-align: right; font-weight: 500;
+    }
+
+    /* ─── Detail grid ─── */
+    .detail-grid {
+        display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+        margin-bottom: 20px;
+    }
+    .detail-item {
+        background: var(--card); backdrop-filter: blur(20px);
+        border: 1px solid var(--card-border);
+        border-radius: var(--radius); padding: 14px 18px;
+        text-align: center;
+    }
+    .detail-item .label {
+        font-size: 11px; color: var(--text-dim); text-transform: uppercase;
+        letter-spacing: 0.5px; font-weight: 600;
+    }
+    .detail-item .val {
+        font-size: 18px; font-weight: 700; margin-top: 4px;
+    }
+    .detail-item .val.s { color: var(--success); }
+    .detail-item .val.w { color: var(--warning); }
+    .detail-item .val.d { color: var(--danger); }
+
+    /* ─── Start button ─── */
+    .start-btn-wrap { text-align: center; margin-bottom: 20px; }
+    .start-btn {
+        display: inline-flex; align-items: center; gap: 10px;
+        padding: 16px 48px; border: none; border-radius: 50px;
+        font-size: 17px; font-weight: 700; cursor: pointer;
+        background: linear-gradient(135deg, #6366f1, #8b5cf6);
+        color: #fff; transition: all 0.3s;
+        box-shadow: 0 4px 24px var(--accent-glow);
+        font-family: inherit;
+    }
+    .start-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 32px var(--accent-glow); }
+    .start-btn:active { transform: translateY(0); }
+    .start-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+    .start-btn .spinner {
+        display: none; width: 18px; height: 18px;
+        border: 3px solid rgba(255,255,255,0.2);
+        border-top: 3px solid #fff; border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+    }
+    .start-btn.loading .spinner { display: inline-block; }
+    .start-btn.loading .btn-text { display: none; }
+
+    /* ─── History table ─── */
+    .history-card {
+        background: var(--card); backdrop-filter: blur(20px);
+        border: 1px solid var(--card-border);
+        border-radius: var(--radius); padding: 20px;
+        margin-bottom: 20px;
+    }
+    .history-card h3 {
+        font-size: 14px; font-weight: 600; color: var(--text-dim);
+        margin-bottom: 14px; letter-spacing: 0.5px;
+        display: flex; align-items: center; gap: 8px;
+    }
+    .history-card h3 button {
+        background: rgba(239,68,68,0.15); border: none; color: #f87171;
+        font-size: 12px; padding: 2px 10px; border-radius: 10px;
+        cursor: pointer; font-family: inherit; font-weight: 500;
+    }
+    .history-card h3 button:hover { background: rgba(239,68,68,0.25); }
+    .history-table {
+        width: 100%; border-collapse: collapse; font-size: 13px;
+    }
+    .history-table th {
+        text-align: left; color: var(--text-dim); font-weight: 600;
+        padding: 6px 8px; border-bottom: 1px solid var(--card-border);
+        font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;
+    }
+    .history-table td {
+        padding: 8px; border-bottom: 1px solid rgba(255,255,255,0.03);
+        color: var(--text); font-weight: 500;
+    }
+    .history-table tr:last-child td { border-bottom: none; }
+
+    /* ─── Footer ─── */
+    .footer {
+        text-align: center; font-size: 12px; color: var(--text-dim);
+        margin-top: 10px;
+    }
+    .footer a { color: var(--accent); text-decoration: none; }
+
+    /* ─── Responsive ─── */
+    @media (max-width: 600px) {
+        body { padding: 20px 12px; }
+        .gauge-card { padding: 28px 16px 20px; }
+        .gauge-ring { width: 140px; height: 140px; }
+        .gauge-value .num { font-size: 34px; }
+        .speed-row { padding: 14px 16px; }
+        .speed-row .info .value { font-size: 16px; }
+        .detail-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
+        .detail-item { padding: 10px 12px; }
+        .detail-item .val { font-size: 15px; }
+        .start-btn { padding: 14px 32px; font-size: 15px; }
+        .header .logo { font-size: 26px; }
+    }
+</style>
+</head>
+<body>
+
+<!-- 粒子背景 -->
+<div class="particles" id="particles"></div>
+
+<!-- SVG 渐变 -->
+<svg style="position:absolute;width:0;height:0;">
+    <defs>
+        <linearGradient id="gaugeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#6366f1"/>
+            <stop offset="100%" stop-color="#22c55e"/>
+        </linearGradient>
+    </defs>
+</svg>
+
+<div class="container">
+
+    <!-- Header -->
+    <div class="header">
+        <div class="logo">Speed<span>Test</span></div>
+        <div class="sub">精确测量你的网络速度 · 多维度指标</div>
+    </div>
+
+    <!-- Gauge -->
+    <div class="gauge-card">
+        <div class="gauge-ring">
+            <svg width="100%" height="100%" viewBox="0 0 170 170">
+                <circle class="bg-circle" cx="85" cy="85" r="80"/>
+                <circle class="fg-circle" id="gaugeCircle" cx="85" cy="85" r="80"/>
+            </svg>
+            <div class="gauge-value">
+                <div class="num" id="gaugeNum">--</div>
+                <div class="unit" id="gaugeUnit">Mbps</div>
+            </div>
+        </div>
+        <div class="gauge-status">
+            <span class="label ready" id="statusLabel">准备就绪</span>
+        </div>
+    </div>
+
+    <!-- Speed rows -->
+    <div class="speed-rows">
+        <!-- Download -->
+        <div class="speed-row" id="rowDownload">
+            <div class="icon download">⬇</div>
+            <div class="info">
+                <div class="title">下载速度</div>
+                <div class="value" id="valDownload"><span class="dim">点击"开始测试"</span></div>
+            </div>
+        </div>
+        <!-- Upload -->
+        <div class="speed-row" id="rowUpload">
+            <div class="icon upload">⬆</div>
+            <div class="info">
+                <div class="title">上传速度</div>
+                <div class="value" id="valUpload"><span class="dim">点击"开始测试"</span></div>
+            </div>
+        </div>
+        <!-- Ping -->
+        <div class="speed-row" id="rowPing">
+            <div class="icon ping-icon">⚡</div>
+            <div class="info">
+                <div class="title">延迟 (Ping)</div>
+                <div class="value" id="valPing"><span class="dim">点击"开始测试"</span></div>
+            </div>
+        </div>
+        <!-- Connection info -->
+        <div class="speed-row" id="rowInfo">
+            <div class="icon info-icon">📡</div>
+            <div class="info">
+                <div class="title">网络信息</div>
+                <div class="value" id="valInfo"><span class="dim">检测中...</span></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Progress -->
+    <div class="progress-wrap" id="progressWrap" style="display:none;">
+        <div class="progress-bar"><div class="fill" id="progressFill"></div></div>
+        <div class="progress-text" id="progressText">准备中...</div>
+    </div>
+
+    <!-- Detail grid -->
+    <div class="detail-grid">
+        <div class="detail-item"><div class="label">最低 Ping</div><div class="val" id="dPingMin">--</div></div>
+        <div class="detail-item"><div class="label">平均 Ping</div><div class="val" id="dPingAvg">--</div></div>
+        <div class="detail-item"><div class="label">抖动 (Jitter)</div><div class="val" id="dJitter">--</div></div>
+        <div class="detail-item"><div class="label">丢包率</div><div class="val" id="dLoss">--</div></div>
+    </div>
+
+    <!-- Start button -->
+    <div class="start-btn-wrap">
+        <button class="start-btn" id="startBtn">
+            <span class="btn-text">🚀 开始测试</span>
+            <span class="spinner"></span>
+        </button>
+    </div>
+
+    <!-- History -->
+    <div class="history-card" id="historyCard">
+        <h3>
+            📋 测试历史
+            <button id="clearHistoryBtn">清空</button>
+        </h3>
+        <div style="overflow-x:auto;">
+            <table class="history-table">
+                <thead>
+                    <tr><th>时间</th><th>下载</th><th>上传</th><th>Ping</th><th>抖动</th></tr>
+                </thead>
+                <tbody id="historyBody">
+                    <tr><td colspan="5" style="text-align:center;color:var(--text-dim);font-weight:400;">暂无记录</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="footer">
+        数据仅供参考 · 测试结果受网络环境和服务端响应影响
+    </div>
+</div>
+
+<script>
+// ─────────────────────────────── 粒子背景 ───────────────────────────────
+(function initParticles() {
+    const container = document.getElementById('particles');
+    const count = 40;
+    for (let i = 0; i < count; i++) {
+        const el = document.createElement('div');
+        el.className = 'particle';
+        el.style.left = Math.random() * 100 + '%';
+        el.style.width = el.style.height = (1 + Math.random() * 2) + 'px';
+        el.style.animationDuration = (15 + Math.random() * 25) + 's';
+        el.style.animationDelay = -(Math.random() * 30) + 's';
+        el.style.opacity = 0.1 + Math.random() * 0.2;
+        container.appendChild(el);
+    }
+})();
+
+// ─────────────────────────────── DOM refs ───────────────────────────────
+const $ = id => document.getElementById(id);
+const gaugeNum = $('gaugeNum'), gaugeUnit = $('gaugeUnit');
+const gaugeCircle = $('gaugeCircle');
+const statusLabel = $('statusLabel');
+const startBtn = $('startBtn');
+const progressWrap = $('progressWrap'), progressFill = $('progressFill'), progressText = $('progressText');
+const valDownload = $('valDownload'), valUpload = $('valUpload'), valPing = $('valPing'), valInfo = $('valInfo');
+const rowDownload = $('rowDownload'), rowUpload = $('rowUpload'), rowPing = $('rowPing'), rowInfo = $('rowInfo');
+const dPingMin = $('dPingMin'), dPingAvg = $('dPingAvg'), dJitter = $('dJitter'), dLoss = $('dLoss');
+const historyBody = $('historyBody'), clearHistoryBtn = $('clearHistoryBtn');
+
+// ─────────────────────────────── State ───────────────────────────────
+let running = false;
+let cancelled = false;
+const historyKey = 'speedtest_history';
+const TEST_TIMEOUT = 8000;
+const PING_COUNT = 5;
+const DOWNLOAD_DURATION = 4000;
+const UPLOAD_DURATION = 3000;
+const CHUNK_SIZE = 1024 * 256; // 256KB per chunk
+
+// ─────────────────────────────── Ping targets ───────────────────────────────
+const PING_URLS = [
+    'https://www.baidu.com',
+    'https://www.qq.com',
+    'https://www.taobao.com',
+    'https://www.bing.com',
+    'https://www.cloudflare.com'
+];
+
+// ─────────────────────────────── Utils ───────────────────────────────
+function setStatus(text, type = 'testing') {
+    statusLabel.textContent = text;
+    statusLabel.className = 'label ' + type;
+}
+
+function setProgress(pct, text) {
+    progressWrap.style.display = 'block';
+    progressFill.style.width = Math.min(100, Math.max(0, pct)) + '%';
+    if (text) progressText.textContent = text;
+}
+
+function formatSpeed(bps) {
+    if (bps < 0 || !isFinite(bps)) return '--';
+    if (bps >= 1e9) return (bps / 1e9).toFixed(2) + ' Gbps';
+    if (bps >= 1e6) return (bps / 1e6).toFixed(2) + ' Mbps';
+    if (bps >= 1e3) return (bps / 1e3).toFixed(1) + ' Kbps';
+    return bps.toFixed(0) + ' bps';
+}
+
+function formatPing(ms) { return ms < 0 || !isFinite(ms) ? '--' : ms.toFixed(0) + ' ms'; }
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+function fmtTime(ts) {
+    const d = new Date(ts);
+    return d.toLocaleTimeString('zh-CN', { hour12: false }) + ':' +
+        String(d.getSeconds()).padStart(2, '0');
+}
+
+function fmtDate(ts) {
+    const d = new Date(ts);
+    return d.toLocaleDateString('zh-CN') + ' ' + d.toLocaleTimeString('zh-CN', { hour12: false });
+}
+
+function updateGauge(val, max = 1000) {
+    const pct = Math.min(1, Math.max(0, val / max));
+    const circumference = 502;
+    const offset = circumference * (1 - pct);
+    gaugeCircle.style.strokeDashoffset = offset;
+}
+
+// ─────────────────────────────── Network info ───────────────────────────────
+function getNetworkInfo() {
+    const info = {};
+    if (navigator.connection) {
+        const c = navigator.connection;
+        info.effectiveType = c.effectiveType || 'unknown';
+        info.downlink = c.downlink;
+        info.rtt = c.rtt;
+        info.type = c.type || 'unknown';
+        info.saveData = c.saveData || false;
+    }
+    // Try to get IP via public API (async)
+    return info;
+}
+
+async function fetchIP() {
+    try {
+        const ctrl = new AbortController();
+        setTimeout(() => ctrl.abort(), 3000);
+        const resp = await fetch('https://api.ipify.org?format=json', { signal: ctrl.signal });
+        const data = await resp.json();
+        return data.ip;
+    } catch { return null; }
+}
+
+// ─────────────────────────────── Ping test ───────────────────────────────
+async function testPing(url, timeout = 4000) {
+    const start = performance.now();
+    try {
+        const ctrl = new AbortController();
+        setTimeout(() => ctrl.abort(), timeout);
+        const resp = await fetch(url, {
+            method: 'GET',
+            mode: 'no-cors',
+            cache: 'no-store',
+            signal: ctrl.signal
+        });
+        return performance.now() - start;
+    } catch {
+        // no-cors 模式下即使成功也会抛错，但我们拿到了 RTT
+        return performance.now() - start;
+    }
+}
+
+async function runPingTest(onProgress) {
+    const results = [];
+    for (let i = 0; i < PING_COUNT; i++) {
+        if (cancelled) return results;
+        const url = PING_URLS[i % PING_URLS.length];
+        const ms = await testPing(url);
+        results.push(ms);
+        onProgress && onProgress(Math.round((i + 1) / PING_COUNT * 100), `Ping 测试 (${i+1}/${PING_COUNT})`);
+        await sleep(200);
+    }
+    return results;
+}
+
+// ─────────────────────────────── Download test ───────────────────────────────
+// 使用多路并发下载 + 大文件来估算下行带宽
+// 原理：同时发起多个 fetch 请求下载随机资源，统计总字节 / 总时间
+async function runDownloadTest(onProgress) {
+    // 使用多个 CDN 资源进行下载测试
+    const urls = [
+        'https://www.baidu.com/img/flexible/logo/pc/result.png',
+        'https://www.baidu.com/img/flexible/logo/pc/result.png?' + Date.now(),
+        'https://t7.baidu.com/it/u=4162611394,4275913936&fm=193',
+        'https://www.baidu.com/img/bd_logo1.png',
+    ];
+
+    let totalBytes = 0;
+    const startTime = performance.now();
+    const maxTime = DOWNLOAD_DURATION;
+    let completed = false;
+
+    // 并发下载多个文件
+    const promises = urls.map(async (url) => {
+        while (!completed && !cancelled && (performance.now() - startTime) < maxTime) {
+            try {
+                const ctrl = new AbortController();
+                setTimeout(() => ctrl.abort(), 3000);
+                const resp = await fetch(url + '&_=' + Math.random(), {
+                    cache: 'no-store',
+                    signal: ctrl.signal
+                });
+                if (!resp.ok) continue;
+                const reader = resp.body.getReader();
+                let chunkBytes = 0;
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    chunkBytes += value.length;
+                    totalBytes += value.length;
+                    const elapsed = performance.now() - startTime;
+                    const speed = totalBytes * 8 / (elapsed / 1000);
+                    onProgress && onProgress(
+                        Math.min(95, Math.round(elapsed / maxTime * 100)),
+                        `下载中 · ${formatSpeed(speed)}`
+                    );
+                }
+            } catch { /* 继续下一轮 */ }
+            if ((performance.now() - startTime) >= maxTime || cancelled) break;
+        }
+    });
+
+    await Promise.race([
+        Promise.all(promises),
+        sleep(maxTime + 500)
+    ]);
+    completed = true;
+
+    const elapsed = (performance.now() - startTime) / 1000;
+    if (elapsed <= 0) return 0;
+    const bps = totalBytes * 8 / elapsed;
+    return bps;
+}
+
+// ─────────────────────────────── Upload test ───────────────────────────��───
+// 通过 POST 上传随机数据到目标来估算上行带宽
+async function runUploadTest(onProgress) {
+    const targets = [
+        'https://httpbin.org/post',
+        'https://postman-echo.com/post'
+    ];
+
+    let totalBytes = 0;
+    const startTime = performance.now();
+    const maxTime = UPLOAD_DURATION;
+    let completed = false;
+
+    const promises = targets.map(async (target) => {
+        while (!completed && !cancelled && (performance.now() - startTime) < maxTime) {
+            // 生成 256KB 随机数据
+            const size = 256 * 1024;
+            const data = new Uint8Array(size);
+            for (let i = 0; i < data.length; i += 4096) {
+                data[i] = Math.random() * 256;
+            }
+            const blob = new Blob([data], { type: 'application/octet-stream' });
+
+            try {
+                const ctrl = new AbortController();
+                setTimeout(() => ctrl.abort(), 5000);
+                const start = performance.now();
+                await fetch(target, {
+                    method: 'POST',
+                    body: blob,
+                    signal: ctrl.signal,
+                    mode: 'no-cors'
+                });
+                totalBytes += size;
+            } catch { /* ignore */ }
+            const elapsed = (performance.now() - startTime) / 1000;
+            if (elapsed > 0) {
+                const speed = totalBytes * 8 / elapsed;
+                onProgress && onProgress(
+                    Math.min(95, Math.round(elapsed / maxTime * 100)),
+                    `上传中 · ${formatSpeed(speed)}`
+                );
+            }
+        }
+    });
+
+    await Promise.race([
+        Promise.all(promises),
+        sleep(maxTime + 1000)
+    ]);
+    completed = true;
+
+    const elapsed = (performance.now() - startTime) / 1000;
+    if (elapsed <= 0) return 0;
+    return totalBytes * 8 / elapsed;
+}
+
+// ─────────────────────────────── Main test ───────────────────────────────
+async function runFullTest() {
+    if (running) return;
+    running = true;
+    cancelled = false;
+    startBtn.classList.add('loading');
+    startBtn.disabled = true;
+
+    // 重置显示
+    [valDownload, valUpload, valPing].forEach(el => el.innerHTML = '<span class="dim">测试中...</span>');
+    valInfo.innerHTML = '<span class="dim">获取中...</span>';
+    [dPingMin, dPingAvg, dJitter, dLoss].forEach(el => el.textContent = '--');
+    [rowDownload, rowUpload, rowPing, rowInfo].forEach(el => el.classList.remove('active'));
+    setStatus('正在测试...', 'testing');
+    gaugeNum.textContent = '--';
+
+    try {
+        // ── 0. 网络信息 ──
+        setProgress(2, '获取网络信息...');
+        rowInfo.classList.add('active');
+        const netInfo = getNetworkInfo();
+        let ip = '获取失败';
+        try { ip = await fetchIP() || '获取失败'; } catch {}
+
+        let infoParts = [];
+        if (netInfo.effectiveType) infoParts.push(`📶 ${netInfo.effectiveType.toUpperCase()}`);
+        if (netInfo.type) infoParts.push(`🔗 ${netInfo.type}`);
+        if (netInfo.downlink) infoParts.push(`⬇ ${netInfo.downlink} Mbps（理论）`);
+        if (ip) infoParts.push(`🌐 ${ip}`);
+        valInfo.textContent = infoParts.join(' · ') || '无法获取';
+        rowInfo.classList.remove('active');
+        await sleep(300);
+
+        // ── 1. Ping ──
+        setProgress(5, 'Ping 测试中...');
+        rowPing.classList.add('active');
+        setStatus('测延迟...', 'testing');
+
+        const pings = await runPingTest((pct, txt) => setProgress(5 + pct * 0.2, txt));
+
+        if (pings.length > 0 && !cancelled) {
+            const valid = pings.filter(p => p > 0);
+            const min = Math.min(...valid);
+            const max = Math.max(...valid);
+            const avg = valid.reduce((a, b) => a + b, 0) / valid.length;
+            const jitter = valid.length > 1
+                ? Math.sqrt(valid.map(v => Math.pow(v - avg, 2)).reduce((a, b) => a + b) / valid.length)
+                : 0;
+            const loss = ((PING_COUNT - valid.length) / PING_COUNT * 100);
+
+            valPing.innerHTML = `${formatPing(avg)} <span class="dim">（最低 ${formatPing(min)}）</span>`;
+            dPingMin.textContent = formatPing(min);
+            dPingAvg.textContent = formatPing(avg);
+            dJitter.textContent = formatPing(jitter);
+            dLoss.textContent = loss > 0 ? loss.toFixed(0) + '%' : '0%';
+
+            if (avg < 50) { dPingMin.className = dPingAvg.className = dJitter.className = 'val s'; }
+            else if (avg < 150) { dPingMin.className = dPingAvg.className = dJitter.className = 'val w'; }
+            else { dPingMin.className = dPingAvg.className = dJitter.className = 'val d'; }
+
+            updateGauge(avg, 200);
+            gaugeNum.textContent = avg.toFixed(0);
+            gaugeUnit.textContent = 'ms';
+        } else if (!cancelled) {
+            valPing.innerHTML = '<span class="dim">无法测出</span>';
+        }
+        rowPing.classList.remove('active');
+        if (cancelled) throw new Error('cancelled');
+        await sleep(400);
+
+        // ── 2. Download ──
+        setProgress(25, '下载速度测试中...');
+        rowDownload.classList.add('active');
+        setStatus('测下行...', 'testing');
+        gaugeUnit.textContent = 'Mbps';
+
+        const dlSpeed = await runDownloadTest((pct, txt) => {
+            setProgress(25 + pct * 0.4, txt);
+        });
+
+        if (!cancelled && dlSpeed > 0) {
+            valDownload.innerHTML = formatSpeed(dlSpeed) + ' <span class="dim">（下行）</span>';
+            const dlMbps = dlSpeed / 1e6;
+            updateGauge(dlMbps, 500);
+            gaugeNum.textContent = dlMbps.toFixed(1);
+            if (dlMbps < 10) gaugeUnit.textContent = 'Mbps ⚠';
+            else if (dlMbps > 200) gaugeUnit.textContent = 'Mbps 🚀';
+            else gaugeUnit.textContent = 'Mbps';
+        } else if (!cancelled) {
+            valDownload.innerHTML = '<span class="dim">无法测出（跨域限制）</span>';
+        }
+        rowDownload.classList.remove('active');
+        if (cancelled) throw new Error('cancelled');
+        await sleep(400);
+
+        // ── 3. Upload ──
+        setProgress(70, '上传速度测试中...');
+        rowUpload.classList.add('active');
+        setStatus('测上行...', 'testing');
+
+        const ulSpeed = await runUploadTest((pct, txt) => {
+            setProgress(70 + pct * 0.25, txt);
+        });
+
+        if (!cancelled && ulSpeed > 0) {
+            valUpload.innerHTML = formatSpeed(ulSpeed) + ' <span class="dim">（上行）</span>';
+        } else if (!cancelled) {
+            valUpload.innerHTML = '<span class="dim">无法测出（跨域限制）</span>';
+        }
+        rowUpload.classList.remove('active');
+
+        // ── 完成 ──
+        if (!cancelled) {
+            setProgress(100, '测试完成 ✓');
+            setStatus('测试完成', 'done');
+
+            // 更新仪表盘显示最佳结果
+            const bestMbps = Math.max(dlSpeed || 0, ulSpeed || 0) / 1e6;
+            if (bestMbps > 0) {
+                updateGauge(bestMbps, 500);
+                gaugeNum.textContent = bestMbps.toFixed(1);
+                gaugeUnit.textContent = 'Mbps ✓';
+            }
+
+            // 保存历史
+            saveHistory({
+                download: dlSpeed || 0,
+                upload: ulSpeed || 0,
+                ping: parseFloat(dPingAvg.textContent) || 0,
+                jitter: parseFloat(dJitter.textContent) || 0
+            });
+        }
+
+    } catch (e) {
+        if (e.message === 'cancelled') {
+            setStatus('已取消', 'ready');
+            setProgress(0, '');
+            progressWrap.style.display = 'none';
+        } else {
+            console.error(e);
+            setStatus('测试出错', 'ready');
+        }
+    }
+
+    running = false;
+    startBtn.classList.remove('loading');
+    startBtn.disabled = false;
+    if (!cancelled) {
+        startBtn.querySelector('.btn-text').textContent = '🔄 重新测试';
+    }
+}
+
+// ─────────────────────────────── History ───────────────────────────────
+function loadHistory() {
+    try {
+        return JSON.parse(localStorage.getItem(historyKey) || '[]');
+    } catch { return []; }
+}
+
+function saveHistory(entry) {
+    const list = loadHistory();
+    entry.time = Date.now();
+    list.unshift(entry);
+    if (list.length > 30) list.length = 30;
+    localStorage.setItem(historyKey, JSON.stringify(list));
+    renderHistory();
+}
+
+function renderHistory() {
+    const list = loadHistory();
+    if (list.length === 0) {
+        historyBody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-dim);font-weight:400;">暂无记录</td></tr>';
+        return;
+    }
+    historyBody.innerHTML = list.map((e, i) => `
+        <tr>
+            <td>${fmtDate(e.time)}</td>
+            <td>${e.download > 0 ? formatSpeed(e.download) : '--'}</td>
+            <td>${e.upload > 0 ? formatSpeed(e.upload) : '--'}</td>
+            <td>${e.ping > 0 ? formatPing(e.ping*1) : '--'}</td>
+            <td>${e.jitter > 0 ? formatPing(e.jitter*1) : '--'}</td>
+        </tr>
+    `).join('');
+}
+
+function clearHistory() {
+    localStorage.removeItem(historyKey);
+    renderHistory();
+}
+
+// ─────────────────────────────── Events ───────────────────────────────
+startBtn.addEventListener('click', runFullTest);
+clearHistoryBtn.addEventListener('click', clearHistory);
+
+// ─────────────────────────────── Init ───────────────────────────────
+(async function init() {
+    // 显示网络信息
+    const netInfo = getNetworkInfo();
+    let infoParts = [];
+    if (netInfo.effectiveType) infoParts.push(`📶 ${netInfo.effectiveType.toUpperCase()}`);
+    if (netInfo.type) infoParts.push(`🔗 ${netInfo.type}`);
+    if (netInfo.downlink) infoParts.push(`⬇ ${netInfo.downlink} Mbps（理论）`);
+    try {
+        const ip = await fetchIP();
+        if (ip) infoParts.push(`🌐 ${ip}`);
+    } catch {}
+    valInfo.textContent = infoParts.join(' · ') || '无法获取网络信息';
+    renderHistory();
+})();
+</script>
+</body>
+</html>
